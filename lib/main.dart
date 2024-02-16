@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 
 import 'package:get/get.dart';
 
-import 'package:bluetooth_car/configuration/setting.dart';
+import 'package:bluetooth_car/configuration/router.dart';
 import 'package:bluetooth_car/controller/bluetooth_car.dart';
+import 'package:bluetooth_car/configuration/locale.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,12 +28,33 @@ class MyApp extends StatelessWidget {
 
     return GetMaterialApp(
       title: 'Bluetooth Car',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+      themeMode: ThemeMode.light,
+      theme: ThemeData.light().copyWith(
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ButtonStyle(
+            shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+            ),
+          ),
+        ),
+      ),
+      darkTheme: ThemeData.dark().copyWith(
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ButtonStyle(
+            shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+            ),
+          ),
+        ),
       ),
       initialRoute: '/',
       getPages: ConstSetting.router,
+      translations: Messages(),
+      locale: const Locale('en', 'US'),
     );
   }
 }

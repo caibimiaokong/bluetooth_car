@@ -40,6 +40,11 @@ dependencies:
   lottie: ^2.7.0
   flutter_bluetooth_serial: ^0.4.0
   get: ^4.6.6
+  flutter_joystick: ^0.0.4
+  kdgaugeview: ^1.0.5
+  day_night_switcher: ^0.2.0+1
+  device_info_plus: ^9.1.2
+
 
 dev_dependencies:
   flutter_test:
@@ -68,6 +73,7 @@ flutter:
     - lib/configuration/asset/blueCar.json
     - lib/configuration/asset/searchBT.json
     - lib/configuration/asset/switchBT.json
+    - lib/configuration/asset/redCar.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

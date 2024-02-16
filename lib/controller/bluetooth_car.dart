@@ -1,152 +1,189 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class BluetoothCar extends GetxController {
-  var bluetoothState = (BluetoothState.STATE_OFF).obs;
-  final isSearching = false.obs;
-  final isConnected = true.obs;
-  late final BluetoothConnection connection;
-  String defaultAddress = '1C:52:16:4E:BC:B4';
-  StreamSubscription<BluetoothDiscoveryResult>? _streamSubscription;
-  List<BluetoothDevice> devicesList = <BluetoothDevice>[].obs;
-  List<BluetoothDiscoveryResult> results = <BluetoothDiscoveryResult>[].obs;
-  final FlutterBluetoothSerial bluetooth = FlutterBluetoothSerial.instance;
+  final isDarkMode = false.obs;
+  BluetoothState bluetoothState = BluetoothState.STATE_OFF;
+  final isBluetoothEnable = false.obs;
+  final isPermissionGranted = false.obs;
+  final isConnected = false.obs;
+  BluetoothConnection? bluetoothConnection;
+  final address = '1C:52:16:4E:BC:B4'.obs;
+  final bluetooth = FlutterBluetoothSerial.instance;
+  StreamSubscription<BluetoothDiscoveryResult>? streamSubscription;
+  List<DropdownMenuItem<BluetoothDiscoveryResult>> results =
+      List<DropdownMenuItem<BluetoothDiscoveryResult>>.empty().obs;
+  final isDiscovering = false.obs;
+
+  void toggleDarkMode() {
+    isDarkMode.value = !isDarkMode.value;
+    Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
+  }
 
   //Check Whether Bluetooth is turned on
-  void isBluetoothON() async {
-    try {
-      bluetoothState.value = await FlutterBluetoothSerial.instance.state;
-    } catch (e) {
-      bluetoothState.value = BluetoothState.STATE_OFF;
+  void isBluetoothOn() async {
+    // Retrieving the current Bluetooth state
+    bluetoothState = await FlutterBluetoothSerial.instance.state;
+    if (bluetoothState == BluetoothState.STATE_OFF) {
+      isBluetoothEnable.value = false;
+    } else if (bluetoothState == BluetoothState.STATE_ON) {
+      await startDisvover();
+      isBluetoothEnable.value = true;
     }
   }
 
-  Future<bool> enableBluetooth() async {
-    // Retrieving the current Bluetooth state
-    bluetoothState.value = await FlutterBluetoothSerial.instance.state;
+  //Get Device Info
+  Future<int> getAndroidSdk() async {
+    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+    return androidInfo.version.sdkInt;
+  }
 
+  Future<bool> requestAccess() async {
+    //request here your permissions
+
+    bool permOne = await Permission.bluetoothScan.request().isGranted;
+    bool permTwo = await Permission.bluetoothAdvertise.request().isGranted;
+    bool permThree = await Permission.bluetoothConnect.request().isGranted;
+
+    //This will only bring up one permission pop-up, but will only grant the permissions you have been requested here
+    //in this method.
+
+    //Return your boolean here
+    return permOne && permTwo && permThree ? true : false;
+  }
+
+  void permissionRequest() async {
+    if (Platform.isAndroid && await getAndroidSdk() > 30) {
+      // It seems some manufacturer misimplement the bluetooth permissions
+      // so I have added the request to Permission.bluetooth and inside
+      // AndroidManifest.xml I have removed the android:maxSdkVersion="30".
+      isPermissionGranted.value = await requestAccess();
+    } else {
+      isPermissionGranted.value =
+          await Permission.bluetooth.request().isGranted;
+    }
+  }
+
+  //switch bluetooth state
+  Future switchBluetoothState(bool value) async {
     // If the Bluetooth is off, then turn it on first
     // and then retrieve the devices that are paired.
-    if (bluetoothState.value == BluetoothState.STATE_OFF) {
-      if (await FlutterBluetoothSerial.instance.requestEnable() ?? false) {
-        await _getPairedDevices();
-        return true;
-      }
-    } else if (bluetoothState.value == BluetoothState.STATE_ON) {
-      await _getPairedDevices();
-      return true;
+    if (value) {
+      await bluetooth.requestEnable();
+      await startDisvover();
+    } else {
+      await bluetooth.requestDisable();
+      disconnectFromDevice();
+      results.clear();
     }
-    return false;
   }
 
-  //get paired devices
-  Future<void> _getPairedDevices() async {
-    List<BluetoothDevice> devices = [];
+  //start discovering bluetooth devices
+  Future<void> startDisvover() async {
+    isDiscovering.value = true;
+    streamSubscription = bluetooth.startDiscovery().listen((r) {
+      debugPrint(r.device.name);
+      results.add(
+        DropdownMenuItem(
+          value: r,
+          onTap: () {
+            address.value = r.device.address;
+          },
+          child: SizedBox(
+            width: 200,
+            height: 30,
+            child: ListTile(
+              title: Text(r.device.name ?? ''),
+              subtitle: r.device.isBonded
+                  ? const Text(
+                      'Paired',
+                      style: TextStyle(color: Colors.blueAccent),
+                    )
+                  : const Text(
+                      'unPaired',
+                      style: TextStyle(color: Colors.blueGrey),
+                    ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.signal_cellular_alt,
+                    color: _computeTextStyle(r.rssi),
+                  ),
+                  Text(
+                    r.rssi.toString(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
 
-    // To get the list of paired devices
-    try {
-      devices = await bluetooth.getBondedDevices();
-    } on PlatformException {
-      debugPrint("Error");
+    streamSubscription!.onDone(() {
+      isDiscovering.value = false;
+    });
+  }
+
+  static Color? _computeTextStyle(int rssi) {
+    /**/ if (rssi >= -35) {
+      return Colors.greenAccent[700];
+    } else if (rssi >= -45) {
+      return Color.lerp(
+          Colors.greenAccent[700], Colors.lightGreen, -(rssi + 35) / 10);
+    } else if (rssi >= -55) {
+      return Color.lerp(Colors.lightGreen, Colors.lime[600], -(rssi + 45) / 10);
+    } else if (rssi >= -65) {
+      return Color.lerp(Colors.lime[600], Colors.amber, -(rssi + 55) / 10);
+    } else if (rssi >= -75) {
+      return Color.lerp(
+          Colors.amber, Colors.deepOrangeAccent, -(rssi + 65) / 10);
+    } else if (rssi >= -85) {
+      return Color.lerp(
+          Colors.deepOrangeAccent, Colors.redAccent, -(rssi + 75) / 10);
+    } else {
+      /*code symetry*/
+      return Colors.redAccent;
     }
-    devicesList = devices;
   }
 
-  //search for bluetooth devices
-  void searchForDevices() async {
-    isSearching.value = true;
-    _streamSubscription =
-        FlutterBluetoothSerial.instance.startDiscovery().listen((r) {
-      results.add(r);
-    });
-    _streamSubscription!.onDone(() {
-      isSearching.value = false;
-    });
-  }
-
-  //stop searching for bluetooth devices
-  void stopSearching() async {
-    _streamSubscription?.cancel();
-    isSearching.value = false;
-  }
-
-  //restart searching for bluetooth devices
-  void restartSearching() async {
-    _streamSubscription?.cancel();
+  void restartDiscovery() {
     results.clear();
-    searchForDevices();
+    isDiscovering.value = true;
+
+    startDisvover();
   }
 
-  //connect to the bluetooth device
-  void connectToDevice({int? index}) async {
+  void connectToDevice() async {
     try {
-      connection = await BluetoothConnection.toAddress(
-          index == null ? defaultAddress : results[index].device.address);
-      if (index != null) {
-        results[index] = BluetoothDiscoveryResult(
-          device: BluetoothDevice(
-              address: results[index].device.address,
-              name: results[index].device.name,
-              type: results[index].device.type,
-              bondState: BluetoothBondState.bonded,
-              isConnected: true),
-          rssi: results[index].rssi,
-        );
-      }
+      await BluetoothConnection.toAddress(address.value).then((connection) {
+        bluetoothConnection = connection;
+        isConnected.value = true;
+      });
     } catch (e) {
       debugPrint(e.toString());
     }
   }
 
-  //disconnect from the bluetooth device
-  void disconnectFromDevice(int index) async {
-    await connection.close();
-    results[index] = BluetoothDiscoveryResult(
-      device: BluetoothDevice(
-          address: results[index].device.address,
-          name: results[index].device.name,
-          type: results[index].device.type,
-          bondState: BluetoothBondState.bonded,
-          isConnected: false),
-      rssi: results[index].rssi,
-    );
+  void disconnectFromDevice() async {
+    await bluetoothConnection?.close();
+    isConnected.value = false;
   }
 
-  //bond the bluetooth device
-  void bondDevice(int index) async {
-    await FlutterBluetoothSerial.instance
-        .bondDeviceAtAddress(results[index].device.address);
-    results[index] = BluetoothDiscoveryResult(
-      device: BluetoothDevice(
-          address: results[index].device.address,
-          name: results[index].device.name,
-          type: results[index].device.type,
-          bondState: BluetoothBondState.bonded),
-      rssi: results[index].rssi,
-    );
+  void sendMessageToBluetooth(String val) async {
+    bluetoothConnection?.output
+        .add(Uint8List.fromList(utf8.encode("$val\r\n")));
+    await bluetoothConnection?.output.allSent;
   }
-
-  //unbond the bluetooth device
-  void unbondDevice(int index) async {
-    if (results[index].device.isConnected == true) {
-      await connection.close();
-    }
-    await FlutterBluetoothSerial.instance
-        .removeDeviceBondWithAddress(results[index].device.address);
-    results[index] = BluetoothDiscoveryResult(
-      device: BluetoothDevice(
-          address: results[index].device.address,
-          name: results[index].device.name,
-          type: results[index].device.type,
-          bondState: BluetoothBondState.none),
-      rssi: results[index].rssi,
-    );
-  }
-
-  //set the default bluetooth device
-  void setDefaultDevice() {}
 }

@@ -8,11 +8,9 @@ class ConstSetting {
       name: '/',
       page: () => const SplashScreen(),
     ),
-    GetPage(name: '/control', page: () => const ControlScreen(), children: [
-      GetPage(
-        name: '/search',
-        page: () => const DiscoverScreen(),
-      ),
-    ]),
+    GetPage(
+      name: '/control',
+      page: () => const ControlScreen(),
+    ),
   ];
 }
