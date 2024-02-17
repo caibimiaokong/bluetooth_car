@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:math' as math;
 
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:flutter_joystick/flutter_joystick.dart';
@@ -20,7 +19,7 @@ class ControlScreen extends StatefulWidget {
 }
 
 class _ControlScreenState extends State<ControlScreen> {
-  String item = 'Device 1';
+  String initCommand = 'Vf';
   bool isAccelerateTap = false;
   bool isHornTap = false;
   String language = 'English';
@@ -35,7 +34,6 @@ class _ControlScreenState extends State<ControlScreen> {
   void initState() {
     super.initState();
     control.startDisvover();
-    debugPrint(control.results.toString());
     //Hide the status bar
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.leanBack);
     FlutterBluetoothSerial.instance
@@ -45,6 +43,7 @@ class _ControlScreenState extends State<ControlScreen> {
         control.isBluetoothEnable.value = true;
       } else if (state == BluetoothState.STATE_OFF) {
         control.isBluetoothEnable.value = false;
+        control.disconnectFromDevice();
         Get.offNamed('/');
       }
     });
@@ -57,6 +56,14 @@ class _ControlScreenState extends State<ControlScreen> {
         overlays: SystemUiOverlay.values);
     control.streamSubscription?.cancel();
     super.dispose();
+  }
+
+  void sendSingleCommand(String command) {
+    if (command != initCommand) {
+      control.sendMessageToBluetooth(command);
+      initCommand = command;
+      debugPrint('Send command: $command');
+    }
   }
 
   @override
@@ -79,89 +86,88 @@ class _ControlScreenState extends State<ControlScreen> {
                     setState(() {
                       isAnimationPlay = true;
                     });
+
+                    sendSingleCommand('W');
                     if (isAccelerateTap) {
-                      control.sendMessageToBluetooth('F');
                       key.currentState?.updateSpeed(255);
                       speedNotifier.value = 255;
-                      debugPrint('Accelerate');
                     } else {
-                      control.sendMessageToBluetooth('W');
                       key.currentState?.updateSpeed(160);
                       speedNotifier.value = 160;
-                      debugPrint('Forward');
                     }
+                    // if (isAccelerateTap) {
+                    //   sendSingleCommand('F');
+                    //   key.currentState?.updateSpeed(255);
+                    //   speedNotifier.value = 255;
+                    // } else {
+                    //   sendSingleCommand('W');
+                    //   key.currentState?.updateSpeed(160);
+                    //   speedNotifier.value = 160;
+                    // }
                   }
                   if (y > -2.414 * x && y > 2.414 * x) {
                     setState(() {
                       isAnimationPlay = true;
                     });
-                    control.sendMessageToBluetooth('X');
+                    sendSingleCommand('X');
                     key.currentState?.updateSpeed(255);
                     speedNotifier.value = 255;
-                    debugPrint('Backward');
                   }
                   if (0.41 * x < y && y < -0.41 * x) {
                     setState(() {
                       isAnimationPlay = true;
                     });
-                    control.sendMessageToBluetooth('A');
+                    sendSingleCommand('A');
                     key.currentState?.updateSpeed(255);
                     speedNotifier.value = 255;
-                    debugPrint('Left');
                   }
                   if (-0.41 * x < y && y < 0.41 * x) {
                     setState(() {
                       isAnimationPlay = true;
                     });
-                    control.sendMessageToBluetooth('D');
+                    sendSingleCommand('D');
                     key.currentState?.updateSpeed(255);
                     speedNotifier.value = 255;
-                    debugPrint('Right');
                   }
                   if (y == 0 && x == 0) {
                     setState(() {
                       isAnimationPlay = false;
                     });
-                    control.sendMessageToBluetooth('S');
+                    sendSingleCommand('S');
                     key.currentState?.updateSpeed(0);
                     speedNotifier.value = 0;
-                    debugPrint('Stop');
                   }
                   if (y > 2.41 * x && y < 0.41 * x) {
                     setState(() {
                       isAnimationPlay = true;
                     });
-                    control.sendMessageToBluetooth('Q');
+                    sendSingleCommand('Q');
                     key.currentState?.updateSpeed(255);
                     speedNotifier.value = 255;
-                    debugPrint('Left Forward');
                   }
                   if (y > -2.41 * x && y < -0.41 * x) {
                     setState(() {
                       isAnimationPlay = true;
                     });
-                    control.sendMessageToBluetooth('E');
+                    sendSingleCommand('E');
                     key.currentState?.updateSpeed(255);
                     speedNotifier.value = 255;
-                    debugPrint('Right Forward');
                   }
                   if (y > -0.41 * x && y < -2.41 * x) {
                     setState(() {
                       isAnimationPlay = true;
                     });
-                    control.sendMessageToBluetooth('Z');
+                    sendSingleCommand('Z');
                     key.currentState?.updateSpeed(255);
                     speedNotifier.value = 255;
-                    debugPrint('Left Backward');
                   }
                   if (y > 0.41 * x && y < 2.41 * x) {
                     setState(() {
                       isAnimationPlay = true;
                     });
-                    control.sendMessageToBluetooth('C');
+                    sendSingleCommand('C');
                     key.currentState?.updateSpeed(255);
                     speedNotifier.value = 255;
-                    debugPrint('Right Backward');
                   }
                 })),
           ),
@@ -189,13 +195,11 @@ class _ControlScreenState extends State<ControlScreen> {
                   setState(() {
                     isAccelerateTap = !isAccelerateTap;
                   });
-                  control.sendMessageToBluetooth('F');
                 },
                 onLongPressEnd: (details) {
                   setState(() {
                     isAccelerateTap = !isAccelerateTap;
                   });
-                  control.sendMessageToBluetooth('W');
                 },
               )),
 
@@ -308,9 +312,10 @@ class _ControlScreenState extends State<ControlScreen> {
                     valueListenable: speedNotifier,
                     builder: (context, value, child) {
                       return KdGaugeView(
+                        key: key,
                         unitOfMeasurement: "MPH",
                         speedTextStyle: TextStyle(
-                          fontSize: 100,
+                          fontSize: 60,
                           fontStyle: FontStyle.italic,
                           fontWeight: FontWeight.w900,
                           foreground: Paint()
@@ -329,9 +334,9 @@ class _ControlScreenState extends State<ControlScreen> {
                           Colors.red
                         ],
                         duration: const Duration(seconds: 6),
-                        child: Lottie.asset(
-                            'lib/configuration/asset/redCar.json',
-                            animate: isAnimationPlay),
+                        child: //Background animation
+                            Lottie.asset('lib/configuration/asset/redCar.json',
+                                animate: isAnimationPlay),
                       );
                     })),
           ),
@@ -374,242 +379,42 @@ class _ControlScreenState extends State<ControlScreen> {
                     ),
                     child: control.isConnected.value
                         ? Text('connected'.tr)
-                        : Text('disconnected'.tr)))
+                        : Text('disconnected'.tr))),
               ],
             ),
           ),
         ],
       )),
-      floatingActionButton: ExpandableFab(
-        distance: 112,
-        children: [
-          ActionButton(
-            onPressed: () => _showAction(context, 0),
-            icon: const Icon(Icons.format_size),
-          ),
-          ActionButton(
-            onPressed: () => _showAction(context, 1),
-            icon: const Icon(Icons.insert_photo),
-          ),
-          ActionButton(
-            onPressed: () => _showAction(context, 2),
-            icon: const Icon(Icons.videocam),
-          ),
-        ],
-      ),
-      /////////////
-      /////////////
-      /////////////
-      ///add this line
       floatingActionButtonLocation: FloatingActionButtonLocation.startTop,
-    );
-  }
-
-  static const _actionTitles = ['Create Post', 'Upload Photo', 'Upload Video'];
-
-  void _showAction(BuildContext context, int index) {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          content: Text(_actionTitles[index]),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('CLOSE'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-@immutable
-class ExpandableFab extends StatefulWidget {
-  const ExpandableFab({
-    super.key,
-    this.initialOpen,
-    required this.distance,
-    required this.children,
-  });
-
-  final bool? initialOpen;
-  final double distance;
-  final List<Widget> children;
-
-  @override
-  State<ExpandableFab> createState() => _ExpandableFabState();
-}
-
-class _ExpandableFabState extends State<ExpandableFab>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _expandAnimation;
-  bool _open = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _open = widget.initialOpen ?? false;
-    _controller = AnimationController(
-      value: _open ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 250),
-      vsync: this,
-    );
-    _expandAnimation = CurvedAnimation(
-      curve: Curves.fastOutSlowIn,
-      reverseCurve: Curves.easeOutQuad,
-      parent: _controller,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _toggle() {
-    setState(() {
-      _open = !_open;
-      if (_open) {
-        _controller.forward();
-      } else {
-        _controller.reverse();
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: Stack(
-        alignment: Alignment
-            .topLeft, //modify this line,change the position of the button
-        clipBehavior: Clip.none,
+      floatingActionButton: ExpandableFab(
+        distance: 90,
         children: [
-          _buildTapToCloseFab(),
-          ..._buildExpandingActionButtons(),
-          _buildTapToOpenFab(),
+          ActionButton(
+            onPressed: () {
+              control.sendMessageToBluetooth('N');
+            },
+            icon: const Icon(Icons.skip_next),
+          ),
+          ActionButton(
+            onPressed: () => control.sendMessageToBluetooth('I'),
+            icon: const Icon(Icons.volume_up),
+          ),
+          ActionButton(
+            onPressed: () => control.sendMessageToBluetooth('O'),
+            icon: const Icon(Icons.volume_down),
+          ),
+          ActionButton(
+            onPressed: () => control.sendMessageToBluetooth('P'),
+            icon: const Icon(Icons.skip_previous),
+          ),
         ],
       ),
     );
   }
-
-  Widget _buildTapToCloseFab() {
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: Center(
-        child: Material(
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
-          elevation: 4,
-          child: InkWell(
-            onTap: _toggle,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Icon(
-                Icons.close,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildExpandingActionButtons() {
-    final children = <Widget>[];
-    final count = widget.children.length;
-    final step = 90.0 / (count - 1);
-    for (var i = 0,
-            angleInDegrees =
-                180.0; //expaned button position from topleft to bottomright
-        i < count;
-        i++, angleInDegrees += step) {
-      children.add(
-        _ExpandingActionButton(
-          directionInDegrees: angleInDegrees,
-          maxDistance: widget.distance,
-          progress: _expandAnimation,
-          child: widget.children[i],
-        ),
-      );
-    }
-    return children;
-  }
-
-  Widget _buildTapToOpenFab() {
-    return IgnorePointer(
-      ignoring: _open,
-      child: AnimatedContainer(
-        transformAlignment: Alignment.topLeft,
-        transform: Matrix4.diagonal3Values(
-          _open ? 0.7 : 1.0,
-          _open ? 0.7 : 1.0,
-          1.0,
-        ),
-        duration: const Duration(milliseconds: 250),
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
-        child: AnimatedOpacity(
-          opacity: _open ? 0.0 : 1.0,
-          curve: const Interval(0.25, 1.0, curve: Curves.easeInOut),
-          duration: const Duration(milliseconds: 250),
-          child: FloatingActionButton(
-            onPressed: _toggle,
-            child: const Icon(Icons.create),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-@immutable
-class _ExpandingActionButton extends StatelessWidget {
-  const _ExpandingActionButton({
-    required this.directionInDegrees,
-    required this.maxDistance,
-    required this.progress,
-    required this.child,
-  });
-
-  final double directionInDegrees;
-  final double maxDistance;
-  final Animation<double> progress;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: progress,
-      builder: (context, child) {
-        final offset = Offset.fromDirection(
-          directionInDegrees * (math.pi / 180.0),
-          progress.value * maxDistance,
-        );
-        return Positioned(
-          right: 4.0 + offset.dx,
-          bottom: 4.0 + offset.dy,
-          child: Transform.rotate(
-            angle: (1.0 - progress.value) * math.pi / 2,
-            child: child!,
-          ),
-        );
-      },
-      child: FadeTransition(
-        opacity: progress,
-        child: child,
-      ),
-    );
-  }
-}
-
-@immutable
-class ActionButton extends StatelessWidget {
+// ignore: must_be_immutable
+class ActionButton extends StatefulWidget {
   const ActionButton({
     super.key,
     this.onPressed,
@@ -620,17 +425,28 @@ class ActionButton extends StatelessWidget {
   final Widget icon;
 
   @override
+  State<ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<ActionButton> {
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      color: theme.colorScheme.secondary,
-      elevation: 4,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: icon,
-        color: theme.colorScheme.onSecondary,
+    return GestureDetector(
+      onTapDown: (details) {},
+      onTapUp: (details) {},
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.secondary,
+          shape: BoxShape.circle,
+        ),
+        width: 40,
+        height: 40,
+        child: IconButton(
+          onPressed: widget.onPressed,
+          icon: widget.icon,
+          color: theme.colorScheme.onSecondary,
+        ),
       ),
     );
   }

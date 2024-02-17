@@ -100,19 +100,25 @@ class BluetoothCar extends GetxController {
             address.value = r.device.address;
           },
           child: SizedBox(
-            width: 200,
-            height: 30,
+            width: 220,
+            height: 20,
             child: ListTile(
-              title: Text(r.device.name ?? ''),
-              subtitle: r.device.isBonded
-                  ? const Text(
-                      'Paired',
-                      style: TextStyle(color: Colors.blueAccent),
-                    )
-                  : const Text(
-                      'unPaired',
-                      style: TextStyle(color: Colors.blueGrey),
-                    ),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Text(r.device.name ?? ''),
+                  const SizedBox(width: 10),
+                  r.device.isBonded
+                      ? const Text(
+                          'Paired',
+                          style: TextStyle(color: Colors.blueAccent),
+                        )
+                      : const Text(
+                          'unPaired',
+                          style: TextStyle(color: Colors.blueGrey),
+                        ),
+                ],
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -133,6 +139,7 @@ class BluetoothCar extends GetxController {
 
     streamSubscription!.onDone(() {
       isDiscovering.value = false;
+      debugPrint(results.toString());
     });
   }
 
