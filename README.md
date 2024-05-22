@@ -6,6 +6,9 @@ bluetooth car is an application used to control bluetooth car which created by a
 ![40efff0563aa3c191c5812315a7f38f](https://github.com/caibimiaokong/bluetooth_car/assets/90626136/98cf86ea-c9f5-4ad9-a8ca-9719ca809464)
 
 # Tech Stack
+Flutter
+
 [flutter_joystick](https://pub.dev/packages/flutter_joystick)
+
 [flutter_bluetooth_serial](https://pub.dev/packages/flutter_bluetooth_serial)
 
